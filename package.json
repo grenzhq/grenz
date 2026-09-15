@@ -1,0 +1,18 @@
+{
+  "name": "grenz",
+  "version": "0.3.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Scoped, revocable, observable permissions for AI agents acting on behalf of humans.",
+  "workspaces": [
+    "proxy",
+    "console"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "cd proxy && bunx tsc --noEmit",
+    "build": "cd proxy && bun run build",
+    "console": "cd console && bun run dev",
+    "grenz": "bun run proxy/src/index.ts"
+  }
+}

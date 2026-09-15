@@ -1,0 +1,23 @@
+{
+  "name": "@grenz/console",
+  "version": "0.3.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Grenz live console — a minimal local dashboard over the proxy's admin API.",
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1 -p 4180",
+    "build": "next build",
+    "start": "next start -H 127.0.0.1 -p 4180"
+  },
+  "dependencies": {
+    "next": "16.2.10",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5"
+  }
+}

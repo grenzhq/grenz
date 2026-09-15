@@ -1,0 +1,37 @@
+# linear-semantic — Linear via the `type: linear` adapter.
+#
+# Uses the Linear adapter's canonical taxonomy (mapped from the REAL Linear MCP
+# toolset), so these rules actually bind to tools the server exposes. Linear
+# writes are upserts (`save_*` → `:write`), and deletes exist for comments,
+# attachments, and status updates. Pair with an upstream in grenz.yaml:
+#
+#   upstreams:
+#     linear:
+#       type: linear
+#       base_url: https://mcp.linear.app/sse
+#       credential: linear_token
+agent: claude-code
+on_behalf_of: you@example.com
+
+grants:
+  - tool: linear
+    allow:
+      - "session:*" # MCP handshake — required to connect
+      - tools:list
+      - issue:read
+      - comment:read
+      - project:read
+      - doc:read
+      - milestone:read
+      - directory:read
+    require_approval:
+      - "issue:write" # save_issue — creates OR updates an issue
+      - "comment:write"
+      - "project:write"
+    deny:
+      - comment:delete
+      - attachment:delete
+      - status:delete
+
+budget:
+  max_actions_per_hour: 200

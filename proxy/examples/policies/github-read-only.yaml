@@ -1,0 +1,21 @@
+# github-read-only — the most conservative useful GitHub policy.
+# The agent can look but never touch. Good for research / triage agents.
+#
+# No `deny` block is needed: Grenz is deny-by-default, so every action not in
+# `allow` is already denied. (A blanket `deny: ["*"]` would be WRONG here — deny
+# outranks allow, so it would also block the reads below.)
+agent: claude-code
+on_behalf_of: you@example.com
+
+grants:
+  - tool: github
+    allow:
+      - repo:read
+      - pr:read
+      - issue:read
+      - user:read
+      - org:read
+      - search:read
+
+budget:
+  max_actions_per_hour: 500

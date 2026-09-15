@@ -1,0 +1,2 @@
+c03bccdc3b448a32848f5ae327e209c982bbb0840d43eec8bc2d5759544a1ed3  web-tree-sitter.wasm
+8292919c88a0f7d3fb31d0cd0253ca5a9531bc1ede82b0537f2c63dd8abe6a7a  tree-sitter-bash.wasm

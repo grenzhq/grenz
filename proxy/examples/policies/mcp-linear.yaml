@@ -1,0 +1,36 @@
+# mcp-linear — wrapping the Linear MCP server.
+#
+# Generic MCP matching is on the server's real tool names via `call:<tool>`.
+# Session/protocol handshake actions must be allowed for the client to connect.
+# Pair this with an upstream in grenz.yaml:
+#
+#   upstreams:
+#     linear:
+#       type: mcp
+#       base_url: https://mcp.linear.app/sse
+#       credential: linear_token
+agent: claude-code
+on_behalf_of: you@example.com
+
+grants:
+  - tool: linear
+    allow:
+      - "session:*"      # initialize, ping, stream, end — protocol handshake
+      - "notify:*"        # JSON-RPC notifications
+      - tools:list
+      - resources:list
+      - resources:read
+      - "prompts:*"
+      - "call:list_*"     # read-only tools
+      - "call:get_*"
+      - "call:search_*"
+      - call:create_issue
+      - call:create_comment
+    require_approval:
+      - "call:delete_*"
+      - call:update_issue
+    deny:
+      - "call:*_admin"
+
+budget:
+  max_actions_per_hour: 200

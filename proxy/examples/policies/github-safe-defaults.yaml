@@ -1,0 +1,46 @@
+# github-safe-defaults — a sensible starting policy for a coding agent.
+#
+# Reads freely, opens and comments on PRs and issues, but cannot merge, delete
+# repos, or touch CI. Deny-by-default: anything not listed is denied.
+agent: claude-code
+on_behalf_of: you@example.com
+
+grants:
+  - tool: github
+    allow:
+      - repo:read
+      - pr:read
+      - pr:create
+      - pr:comment
+      - pr:update
+      - issue:read
+      - issue:create
+      - issue:update
+      - user:read
+      - org:read
+      - search:read
+    deny:
+      - pr:merge
+      - repo:delete
+      - repo:write     # block direct content writes; PRs are the path in
+      - actions:*      # never let the agent drive CI
+
+budget:
+  max_actions_per_hour: 300
+
+# Scan outbound request bodies for credential shapes (AWS/GitHub/Slack/Stripe/
+# private keys, etc.). A permitted action can still carry a bad payload — e.g. a
+# secret pasted into a pr:comment. on_match: deny | require_approval.
+dlp:
+  scan_bodies: true
+  on_match: deny
+
+# Kill-switch (opt-in). A tripwire revokes on the mere ATTEMPT of an action, and
+# by default cascades — one raided sub-agent kills the whole delegation tree at
+# once. repo:delete is already denied above, so an attempt is itself the raid
+# signal. Uncomment to arm. Use `on_trip: leaf` to revoke only the sub-token that
+# tripped. Stronger still: plant a decoy with `grenz decoy` — nobody legitimate
+# ever touches it, so a touch is high-confidence compromise.
+# tripwires:
+#   - action: repo:delete
+#     note: "destructive — never allowed"

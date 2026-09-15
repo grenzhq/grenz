@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build artifacts
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Next.js (console)
+.next/
+next-env.d.ts
+
+# Compiled Grenz proxy binary
+/grenz
+/bin/grenz
+proxy/grenz
+proxy/dist/
+
+# Test coverage
+coverage/
+
+# --- Grenz secret material: NEVER commit ---
+# The vault, its age identity, and the local request log hold or reveal
+# credential material. Real credentials exist only inside the proxy.
+.grenz/
+*.age
+identity
+identity.txt
+*.key
+requests.db
+requests.db-*
+
+# Environment / local secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Local agent planning notes (never published)
+docs/superpowers/
+.superpowers/
+
+# Claude Code personal settings (holds the bash-guard hook + GRENZ_TOKEN)
+.claude/settings.local.json

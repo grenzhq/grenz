@@ -1,0 +1,29 @@
+# slack-semantic — Slack via the `type: slack` adapter.
+#
+# The agent can read channels and history, but posting a message or reacting
+# needs a human tap, and file uploads are denied outright. Pair with:
+#
+#   upstreams:
+#     slack:
+#       type: slack
+#       base_url: https://your-slack-mcp-server/sse
+#       credential: slack_token
+agent: claude-code
+on_behalf_of: you@example.com
+
+grants:
+  - tool: slack
+    allow:
+      - "session:*"
+      - tools:list
+      - channel:read
+      - message:read
+      - directory:read
+    require_approval:
+      - message:send
+      - reaction:add
+    deny:
+      - file:upload
+
+budget:
+  max_actions_per_hour: 150

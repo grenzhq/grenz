@@ -10,7 +10,6 @@ import { PageHeader } from "@/components/page-header";
 import { StateToggle } from "@/components/state-toggle";
 import { useModal } from "@/components/use-modal";
 import {
-  BASH_CAPABILITIES,
   GROUPS,
   applyCapability,
   losesScope,
@@ -184,6 +183,12 @@ export default function PermissionsPage() {
             alone is always the safe choice.
           </p>
         </div>
+        <Link
+          href="/setup"
+          className="text-primary ml-auto shrink-0 text-[12.5px] font-medium"
+        >
+          Set up from what your agent did →
+        </Link>
       </Card>
 
       {GROUPS.map((group) => {

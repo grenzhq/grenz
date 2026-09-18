@@ -167,3 +167,14 @@ test("a capability that claims part of a binary lists command shapes, not the bi
   ]);
   expect(row(realPolicy(), "git-publish").commands).toEqual(["git push*", "git reset*"]);
 });
+
+test("echo is not filed as a read, because a redirect makes it a write", () => {
+  const g: EditorGrant = {
+    tool: "bash",
+    allow: [{ action: "exec:echo", targets: ["echo *"] }],
+    require_approval: [],
+    deny: [],
+  };
+  expect(row(g, "read").present).toBe(false);
+  expect(readCapabilities(g).leftovers.some((l) => l.action === "exec:echo")).toBe(true);
+});

@@ -49,6 +49,15 @@ export interface Capability {
   /** A target beginning with one of these belongs here. The binary is the
    *  prefix's first word, so `"git push"` claims `exec:git` / `git push*`. */
   readonly prefixes?: readonly string[];
+  /** Shown when the review pulls this capability to the top. Each risk is its
+   *  own sentence: "it can undo Grenz itself" is true of sudo and false of
+   *  ssh, and one warning stretched over both teaches nothing. */
+  readonly whenFlagged?: string;
+  /** What to suggest for this capability when setting a policy up from
+   *  scratch. Never `allow` for anything irreversible or off-machine — a
+   *  default that is too tight only costs an interruption, while one that is
+   *  too loose costs whatever the agent did before you noticed. */
+  readonly defaultState: CapState;
 }
 
 export const GROUPS: ReadonlyArray<{ id: CapGroup; title: string; note: string }> = [
@@ -70,17 +79,23 @@ export const GROUPS: ReadonlyArray<{ id: CapGroup; title: string; note: string }
 export const BASH_CAPABILITIES: readonly Capability[] = [
   {
     id: "read",
+    defaultState: "allow",
     group: "code",
     name: "Read and search files",
     description: "Open, list and search files.",
     binaries: [
       "cat", "ls", "head", "tail", "grep", "rg", "find", "wc", "sed", "diff",
-      "du", "sort", "uniq", "cut", "tr", "jq", "shasum", "which", "echo",
-      "printf", "date", "pgrep", "true",
+      "du", "sort", "uniq", "cut", "tr", "jq", "shasum", "which", "date",
+      "pgrep", "true",
+      // `echo` and `printf` are deliberately NOT here. They look like reads and
+      // are not: with a shell redirect they write, and filing them under a read
+      // capability would let `echo … > /etc/passwd` inherit a read grant. They
+      // stay unnamed, which surfaces them for a deliberate decision.
     ],
   },
   {
     id: "build",
+    defaultState: "allow",
     group: "code",
     name: "Run tests and builds",
     description: "Test runners, bundlers and type checks.",
@@ -88,6 +103,7 @@ export const BASH_CAPABILITIES: readonly Capability[] = [
   },
   {
     id: "navigate",
+    defaultState: "allow",
     group: "code",
     name: "Move around the project",
     description: "Change folder, make a folder.",
@@ -95,6 +111,7 @@ export const BASH_CAPABILITIES: readonly Capability[] = [
   },
   {
     id: "git-local",
+    defaultState: "allow",
     group: "git",
     name: "Commit locally",
     description: "Stage, commit, branch, stash, check out. Nothing is published.",
@@ -107,6 +124,7 @@ export const BASH_CAPABILITIES: readonly Capability[] = [
   },
   {
     id: "git-publish",
+    defaultState: "ask",
     group: "git",
     name: "Publish and rewrite history",
     description:
@@ -115,6 +133,7 @@ export const BASH_CAPABILITIES: readonly Capability[] = [
   },
   {
     id: "gh-read",
+    defaultState: "allow",
     group: "git",
     name: "Read and open pull requests",
     description: "View, list, create, comment, check CI.",
@@ -125,6 +144,7 @@ export const BASH_CAPABILITIES: readonly Capability[] = [
   },
   {
     id: "gh-write",
+    defaultState: "ask",
     group: "git",
     name: "Merge PRs and change repositories",
     description: "Merge, rename, delete, change settings.",
@@ -132,6 +152,7 @@ export const BASH_CAPABILITIES: readonly Capability[] = [
   },
   {
     id: "files",
+    defaultState: "ask",
     group: "machine",
     name: "Delete, move and copy files",
     description: "Anywhere the agent can reach, not only the project.",
@@ -139,6 +160,9 @@ export const BASH_CAPABILITIES: readonly Capability[] = [
   },
   {
     id: "network",
+    whenFlagged:
+      "Downloads bring code in and uploads send data out. Worth a deliberate answer rather than a default.",
+    defaultState: "ask",
     group: "machine",
     name: "Reach the network",
     description: "Download or send data.",
@@ -146,6 +170,7 @@ export const BASH_CAPABILITIES: readonly Capability[] = [
   },
   {
     id: "processes",
+    defaultState: "ask",
     group: "machine",
     name: "Stop running processes",
     description: "Kill a process by id or by name.",
@@ -153,6 +178,9 @@ export const BASH_CAPABILITIES: readonly Capability[] = [
   },
   {
     id: "admin",
+    whenFlagged:
+      "Anything run this way can change your whole machine — including undoing Grenz itself. There is no safe narrow version of this one.",
+    defaultState: "block",
     group: "never",
     name: "Administrator access",
     description: "Everything the agent could do becomes everything you can do.",
@@ -160,6 +188,9 @@ export const BASH_CAPABILITIES: readonly Capability[] = [
   },
   {
     id: "remote",
+    whenFlagged:
+      "A connection off this machine is how work, and data, leave it. Block it unless you actually want the agent reaching other computers.",
+    defaultState: "block",
     group: "never",
     name: "Connect to other machines",
     description: "A way off this computer entirely.",
@@ -476,4 +507,46 @@ export function applyCapability(
 /** Blocking a whole binary throws away its target scoping — worth confirming. */
 export function losesScope(row: CapabilityRow, state: CapState): boolean {
   return state === "block" && row.present && row.narrowedTo > 0 && !row.cap.prefixes;
+}
+
+/**
+ * Paths whose mere appearance in a command deserves a human's eyes, whatever
+ * the policy currently says about it.
+ *
+ * Reading a file is the least alarming thing an agent does, right up until the
+ * file is a private key. A read grant is almost always written as "let it read
+ * the project" and almost never actually scoped to the project, so this is the
+ * gap between what someone meant and what they wrote.
+ */
+const SENSITIVE_HINTS: readonly string[] = [
+  "/.ssh", "/.aws", "/.gnupg", "/.netrc", "/.docker/config", "/.kube",
+  "id_rsa", "id_ed25519", "id_ecdsa", ".env", "credentials", "/etc/passwd",
+  "/etc/shadow", "/etc/sudoers", ".pem", ".p12", "token", "secret",
+];
+
+export function touchesSensitivePath(target: string): boolean {
+  const t = target.toLowerCase();
+  return SENSITIVE_HINTS.some((h) => t.includes(h));
+}
+
+/** Which capability owns a single request. Used to read a request LOG as
+ *  capabilities, which is how a policy gets built from what actually happened
+ *  rather than from a blank page. */
+export function capabilityFor(
+  action: string,
+  target: string,
+  catalogue: readonly Capability[] = BASH_CAPABILITIES,
+): Capability | null {
+  const binary = binaryOf(action);
+  if (binary === null) return null;
+  // A prefix capability is more specific than a binary one, so it wins: a
+  // policy that names `git push` separately means it.
+  for (const cap of catalogue) {
+    if (!cap.prefixes) continue;
+    if (cap.prefixes.some((p) => p.split(" ")[0] === binary && target.startsWith(p))) return cap;
+  }
+  for (const cap of catalogue) {
+    if (cap.binaries?.includes(binary)) return cap;
+  }
+  return null;
 }

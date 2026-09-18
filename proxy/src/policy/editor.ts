@@ -15,7 +15,16 @@
  * The object form is carried through untouched so a scoped rule is never
  * flattened or dropped.
  */
-import { parse as parseYaml, parseDocument, stringify as stringifyYaml } from "yaml";
+import {
+  isMap,
+  isNode,
+  isSeq,
+  parse as parseYaml,
+  parseDocument,
+  stringify as stringifyYaml,
+  type Document,
+  type YAMLMap,
+} from "yaml";
 
 /** One grant as the editor sees it. Lists hold string patterns and/or the
  *  target-scoped object form; both survive a round-trip. */
@@ -75,21 +84,106 @@ export function policyEditorView(sourceYaml: string): PolicyEditorView {
  * caller compiles the result (fail closed there).
  */
 export function writeGrants(sourceYaml: string, grants: ReadonlyArray<EditorGrant>): string {
-  const cleaned = grants.map((g) => {
-    const out: Record<string, unknown> = { tool: g.tool };
-    if (g.allow.length > 0) out.allow = [...g.allow];
-    if (g.require_approval.length > 0) out.require_approval = [...g.require_approval];
-    if (g.deny.length > 0) out.deny = [...g.deny];
-    return out;
-  });
-
   // Edit the source as a Document so comments everywhere OUTSIDE the grants node
-  // — an operator's "why" on a budget or tripwire — survive the round-trip. Only
-  // the grants node is replaced. A blank/non-map source falls back to a fresh dump.
+  // — an operator's "why" on a budget or tripwire — survive the round-trip. A
+  // blank/non-map source falls back to a fresh dump.
   const doc = parseDocument(sourceYaml);
   if (doc.contents == null) {
-    return stringifyYaml({ grants: cleaned });
+    return stringifyYaml({ grants: grants.map(cleanGrant) }, EMIT);
   }
-  doc.set("grants", doc.createNode(cleaned));
-  return doc.toString();
+
+  const seq = doc.get("grants", true);
+  if (!isSeq(seq)) {
+    doc.set("grants", doc.createNode(grants.map(cleanGrant)));
+    return doc.toString(EMIT);
+  }
+
+  // Comments live on the node objects, not in the values, so a rule that
+  // survives an edit must keep the node it arrived on. Rebuilding the grants
+  // block from plain values would compile to the same policy but throw away
+  // every `# --- git: read + local write ---` in it, and reflow the untouched
+  // rules besides (a flow-style `targets: [...]` comes back as a block list).
+  const byTool = new Map<string, YAMLMap>();
+  for (const item of seq.items) {
+    if (!isMap(item)) continue;
+    const tool = item.get("tool");
+    if (typeof tool === "string" && !byTool.has(tool)) byTool.set(tool, item);
+  }
+
+  seq.items = grants.map((g) => {
+    const map = byTool.get(g.tool);
+    if (map === undefined) return doc.createNode(cleanGrant(g));
+    byTool.delete(g.tool);
+    for (const key of LIST_KEYS) rewriteList(doc, map, key, g[key]);
+    return map;
+  });
+  return doc.toString(EMIT);
+}
+
+/** Emit the way a person writes YAML, so lines nobody edited come back
+ *  unchanged: no padding inside `["a", "b"]`, and no wrapping a long list
+ *  across seven lines because it passed the default 80-column width. */
+const EMIT = { flowCollectionPadding: false, lineWidth: 0 } as const;
+
+const LIST_KEYS = ["allow", "require_approval", "deny"] as const;
+
+function cleanGrant(g: EditorGrant): Record<string, unknown> {
+  const out: Record<string, unknown> = { tool: g.tool };
+  for (const key of LIST_KEYS) {
+    if (g[key].length > 0) out[key] = [...g[key]];
+  }
+  return out;
+}
+
+/**
+ * Replace one rule list on an existing grant, reusing the source node for every
+ * entry whose value is unchanged. Entries are matched by value, so reordering a
+ * list carries each rule's comment along with it.
+ */
+function rewriteList(
+  doc: Document,
+  map: YAMLMap,
+  key: string,
+  entries: ReadonlyArray<string | Record<string, unknown>>,
+): void {
+  if (entries.length === 0) {
+    map.delete(key);
+    return;
+  }
+  const seq = map.get(key, true);
+  if (!isSeq(seq)) {
+    map.set(key, doc.createNode([...entries]));
+    return;
+  }
+  // A comment before the first entry parses onto the LIST, not onto that entry,
+  // so deleting or moving the first rule would strand its header above whatever
+  // took its place. Hand it to the entry it was written for.
+  const first = seq.items[0];
+  if (seq.commentBefore != null && isNode(first) && first.commentBefore == null) {
+    first.commentBefore = seq.commentBefore;
+    seq.commentBefore = null;
+  }
+
+  // A pool rather than a lookup: two identical rules in the source are two
+  // nodes with two different comments, and each should be claimed once.
+  const pool = new Map<string, unknown[]>();
+  for (const item of seq.items) {
+    const k = valueKey(isNode(item) ? item.toJSON() : item);
+    const bucket = pool.get(k);
+    if (bucket) bucket.push(item);
+    else pool.set(k, [item]);
+  }
+  seq.items = entries.map((e) => pool.get(valueKey(e))?.shift() ?? doc.createNode(e));
+}
+
+/** Order-independent identity for a rule entry, for matching a proposed entry
+ *  against the source node that already holds it. */
+function valueKey(v: unknown): string {
+  if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
+  if (Array.isArray(v)) return `[${v.map(valueKey).join(",")}]`;
+  const o = v as Record<string, unknown>;
+  return `{${Object.keys(o)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${valueKey(o[k])}`)
+    .join(",")}}`;
 }

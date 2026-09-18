@@ -135,3 +135,63 @@ budget:
     expect(tools).toEqual(["github", "slack"]);
   });
 });
+
+describe("writeGrants keeps the comments inside grants", () => {
+  // Shaped like the real dogfood policy: section headers above rules, a
+  // flow-style target list, and a note on one individual rule.
+  const COMMENTED = `agent: claude-code
+on_behalf_of: x
+grants:
+  - tool: bash
+    allow:
+      # --- git: read + local write. push asks below. ---
+      - action: "exec:git"
+        targets: ["git status*", "git diff*"]
+      # --- build ---
+      - action: "exec:bun"
+        targets: ["bun test*"]
+    require_approval:
+      - action: "exec:git" # push is the one that leaves this machine
+        targets: ["git push*"]
+`;
+
+  function edit(mutate: (g: EditorGrant) => EditorGrant): string {
+    const view = policyEditorView(COMMENTED);
+    return writeGrants(COMMENTED, [mutate(view.grants[0]!)]);
+  }
+
+  test("an untouched grant round-trips byte for byte", () => {
+    expect(edit((g) => g)).toBe(COMMENTED);
+  });
+
+  test("section headers survive adding a rule", () => {
+    const out = edit((g) => ({ ...g, deny: [...g.deny, { action: "exec:curl" }] }));
+    expect(out).toContain("# --- git: read + local write. push asks below. ---");
+    expect(out).toContain("# --- build ---");
+    expect(out).toContain("# push is the one that leaves this machine");
+    expect(compilePolicyYaml(out).ok).toBe(true);
+  });
+
+  test("a rule's comment follows it when the list is reordered", () => {
+    const out = edit((g) => ({ ...g, allow: [...g.allow].reverse() }));
+    const lines = out.split("\n");
+    const build = lines.findIndex((l) => l.includes("# --- build ---"));
+    const git = lines.findIndex((l) => l.includes("# --- git:"));
+    expect(build).toBeGreaterThan(-1);
+    expect(build).toBeLessThan(git);
+    expect(lines[build + 1]).toContain("exec:bun");
+  });
+
+  test("removing a rule takes only its own comment", () => {
+    // Drop the git rule; the build section header must not drift onto it.
+    const out = edit((g) => ({ ...g, allow: g.allow.slice(1) }));
+    expect(out).not.toContain("# --- git:");
+    expect(out).toContain("# --- build ---");
+    expect(out).not.toContain("exec:git\"\n        targets: [\"git status*\"");
+  });
+
+  test("untouched rules are not reflowed", () => {
+    const out = edit((g) => ({ ...g, deny: ["exec:nc"] }));
+    expect(out).toContain('targets: ["git status*", "git diff*"]');
+  });
+});

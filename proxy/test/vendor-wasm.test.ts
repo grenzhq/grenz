@@ -8,5 +8,5 @@ import { join } from "node:path";
 
 test("vendored wasm matches checksums.txt", () => {
   const r = Bun.spawnSync(["bun", "run", join(import.meta.dir, "..", "scripts", "verify-wasm.ts")]);
-  expect(r.exitCode, new TextDecoder().decode(r.stderr)).toBe(0);
+  expect(r.exitCode, r.stderr.toString("utf8")).toBe(0);
 });

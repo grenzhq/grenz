@@ -54,10 +54,14 @@ interface Exec {
 }
 function sh(cmd: string): Exec {
   const p = Bun.spawnSync(["sh", "-c", cmd]);
+  // `Buffer.toString`, not `TextDecoder`: bun-types floats its `@types/node`
+  // dependency, and on newer ones a `Buffer` no longer satisfies
+  // `TextDecoder.decode`'s parameter type. Buffer's own decode is stable
+  // across both and is less code besides.
   return {
     code: p.exitCode,
-    stdout: new TextDecoder().decode(p.stdout).trim(),
-    stderr: new TextDecoder().decode(p.stderr).trim(),
+    stdout: p.stdout.toString("utf8").trim(),
+    stderr: p.stderr.toString("utf8").trim(),
   };
 }
 

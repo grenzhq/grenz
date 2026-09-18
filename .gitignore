@@ -51,3 +51,6 @@ docs/superpowers/
 
 # Claude Code personal settings (holds the bash-guard hook + GRENZ_TOKEN)
 .claude/settings.local.json
+
+# Browser-automation scratch output (screenshots, snapshots, console logs)
+.playwright-mcp/

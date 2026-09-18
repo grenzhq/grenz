@@ -1,12 +1,10 @@
 # Grenz Console
 
-A minimal local dashboard over the Grenz proxy's loopback admin API: a live
-**Firewall Activity** feed that names each defense the proxy fires
-(tripwire, taint-flow, session pin, decoy, DLP, kill-switch, …), plus live
-requests, allow/deny/approval counts, and one-click approve/deny for pending
-requests. A form-based
-**Policy editor** (/policy) edits the agent's grants — validated before it's
-applied, with advanced sections and comments preserved.
+A local dashboard over the Grenz proxy's loopback admin API: live requests and
+the verdict on each, approvals you can answer in one click, a **Firewall
+Activity** feed naming each defense the proxy fires (tripwire, taint-flow,
+session pin, decoy, DLP, kill-switch, …), a form-based **Policy editor**, and
+an **Access** screen for the kill-switch and temporary grants.
 
 The admin token stays server-side (read from the Grenz home); the browser only
 talks to this app's API routes.
@@ -38,6 +36,38 @@ GRENZ_PROXY_URL=http://127.0.0.1:9930 GRENZ_HOME=/path/to/.grenz bun run dev
 
 The console never shows credential material — it renders only decision metadata
 the proxy exposes.
+
+## How it's put together
+
+Next.js App Router, Tailwind v4, and [shadcn/ui](https://ui.shadcn.com)
+components vendored under `components/ui/` (the `radix-nova` style: Radix
+primitives, Lucide icons, Geist). Charts are Recharts through shadcn's chart
+wrapper.
+
+| Path | What lives there |
+|---|---|
+| `app/layout.tsx` | The shell: sidebar, header, one data provider |
+| `app/*/page.tsx` | One screen per sidebar entry |
+| `app/api/*` | Server routes that forward to the proxy with the admin token |
+| `components/console-data.tsx` | The single poller; every screen reads it |
+| `components/ui/*` | Vendored shadcn components — regenerate, don't hand-edit |
+| `lib/types.ts` | Shapes the admin API returns |
+| `lib/grenz.ts` | Token handling and proxy forwarding (server-only) |
+
+Two conventions worth keeping:
+
+- **One poller.** `ConsoleDataProvider` polls the admin API once per interval
+  and shares the snapshot through context. Adding a `fetch` inside a screen
+  multiplies load on the proxy for no benefit — add the endpoint to the
+  provider instead. It also pauses while the tab is hidden.
+- **Decisions have their own colour tokens.** `allow` / `deny` / `held` /
+  `tripwire` in `app/globals.css` are separate from `primary` and
+  `destructive`, so changing the brand colour can never repaint a verdict. Use
+  `<DecisionBadge>` rather than restyling a badge inline.
+
+Dark and light are both designed; the theme follows the system by default and
+the header toggle overrides it (stored in `localStorage`, applied before first
+paint by a small inline script — there is no theme library).
 
 ## Security / trust model
 

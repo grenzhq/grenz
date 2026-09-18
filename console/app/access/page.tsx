@@ -1,9 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Nav, PageHead } from "../Nav";
-import { Select, type SelectOption } from "../Select";
-import { useModal } from "../Modal";
+import { AlertTriangle, Check, Copy, Plus, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PageHeader } from "@/components/page-header";
+import { useModal } from "@/components/use-modal";
+import { cn } from "@/lib/utils";
 
 type Origin = "auto" | "manual";
 
@@ -194,7 +214,7 @@ export default function AccessPage() {
       title: "End grant early?",
       body: (
         <>
-          {agent} loses <span className="mono">[{actions.join(", ")}]</span> immediately.
+          {agent} loses <span className="font-mono">[{actions.join(", ")}]</span> immediately.
         </>
       ),
       confirmLabel: "End grant",
@@ -253,13 +273,13 @@ export default function AccessPage() {
     const isRevoked = view?.agents.find((a) => a.id === agent)?.revoked ?? false;
     const facts = (
       <>
-        Widen <b>{agent}</b> beyond its policy: <span className="mono">[{actionList.join(", ")}]</span> for{" "}
+        Widen <b>{agent}</b> beyond its policy: <span className="font-mono">[{actionList.join(", ")}]</span> for{" "}
         <b>{ttlLabel}</b>. Matching actions skip approval prompts for the whole window; explicit denies still apply.
         {isRevoked && (
           <>
             {" "}
             <br />
-            <span className="modal-warn">
+            <span className="text-deny-foreground font-medium">
               {agent} is currently revoked — this grant has no effect until it is restored.
             </span>
           </>
@@ -276,7 +296,7 @@ export default function AccessPage() {
           <>
             {facts}
             <br />
-            <span className="modal-warn">⚠ This grant matches EVERY action not explicitly denied.</span>
+            <span className="text-deny-foreground font-medium">⚠ This grant matches EVERY action not explicitly denied.</span>
           </>
         ),
         fieldLabel: `Type the agent id "${agent}" to confirm`,
@@ -346,9 +366,13 @@ export default function AccessPage() {
   };
 
   function Pill({ a }: { a: AgentRow }) {
-    if (a.fleet) return <span className="badge fleet">Fleet-revoked</span>;
-    if (a.revoked) return <span className="badge revoked">Revoked</span>;
-    return <span className="badge active">Active</span>;
+    const base =
+      "inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-medium";
+    if (a.fleet)
+      return <span className={cn(base, "border-deny/30 bg-deny/10 text-deny-foreground")}>Fleet-revoked</span>;
+    if (a.revoked)
+      return <span className={cn(base, "border-deny/30 bg-deny/10 text-deny-foreground")}>Revoked</span>;
+    return <span className={cn(base, "border-allow/30 bg-allow/10 text-allow-foreground")}>Active</span>;
   }
 
   const grantIds = new Set(grants.map((g) => g.id));
@@ -358,248 +382,341 @@ export default function AccessPage() {
   const otherRows = (view?.other ?? []).filter((o) => !grantIds.has(o.id));
 
   return (
-    <>
-      <Nav />
-      <div className="wrap">
-        <PageHead title="Access control">
-        Act on an agent right now, without touching the policy. <b>Revoke</b> cuts one off instantly — an emergency
-        kill-switch that takes effect before any credential is touched. <b>Grant</b> widens an agent past its policy
-        for a bounded window that expires on its own.
-      </PageHead>
+    <div className="flex min-w-0 flex-1 flex-col gap-4 p-6">
+      <PageHeader title="Access control">
+        Act on an agent right now, without touching the policy. <b>Revoke</b> cuts one off instantly
+        — an emergency kill-switch that takes effect before any credential is touched.{" "}
+        <b>Grant</b> widens an agent past its policy for a bounded window that expires on its own.
+      </PageHeader>
 
       {offline && (
-        <div className="offline">
-          Can’t reach the Grenz proxy. Start it with <code>grenz run</code>.
-        </div>
+        <Alert variant="destructive">
+          <AlertTriangle />
+          <AlertTitle>Can&rsquo;t reach the Grenz proxy.</AlertTitle>
+          <AlertDescription>
+            Start it with <code className="font-mono">grenz run</code>.
+          </AlertDescription>
+        </Alert>
       )}
 
       {view && !view.enabled && (
-        <div className="offline info">
-          The kill switch isn’t enabled on this proxy — no revocation store is configured. Access can’t be
-          revoked from here.
+        <Alert>
+          <AlertTitle>The kill switch isn&rsquo;t enabled on this proxy.</AlertTitle>
+          <AlertDescription>
+            No revocation store is configured, so access can&rsquo;t be revoked from here.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {msg && (
+        <div
+          className={cn(
+            "rounded-lg border px-3.5 py-2.5 text-[12.5px]",
+            msg.kind === "ok" && "border-allow/30 bg-allow/10 text-allow-foreground",
+            msg.kind === "err" && "border-deny/30 bg-deny/10 text-deny-foreground",
+            msg.kind === "warn" && "border-held/30 bg-held/10 text-held-foreground",
+          )}
+        >
+          {msg.text}
         </div>
       )}
 
-      {msg && <div className={`ks-msg ${msg.kind}`}>{msg.text}</div>}
-
       {view?.enabled && (
         <>
-          <div className="sec-head">
-            <h2>Agents</h2>
-            <button className="add-agent-btn" onClick={() => setAddingAgent((v) => !v)}>
-              {addingAgent ? "Cancel" : "+ Add agent"}
-            </button>
-          </div>
+          <Card className="min-w-0 gap-0 overflow-hidden py-0">
+            <CardHeader className="items-center border-b px-[18px] py-3.5">
+              <CardTitle className="text-[14.5px]">Agents</CardTitle>
+              <CardAction>
+                <Button variant="outline" size="sm" className="h-[30px]" onClick={() => setAddingAgent((v) => !v)}>
+                  {addingAgent ? <X className="size-3.5" /> : <Plus className="size-3.5" />}
+                  {addingAgent ? "Cancel" : "Add agent"}
+                </Button>
+              </CardAction>
+            </CardHeader>
 
-          {addingAgent && (
-            <div className="card ks-card add-agent-form">
-              <input
-                aria-label="new agent id"
-                placeholder="agent id, e.g. ci-bot"
-                value={newAgentId}
-                autoFocus
-                onChange={(e) => setNewAgentId(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && void createAgent()}
-              />
-              <button
-                className="approve"
-                disabled={minting || !newAgentId.trim()}
-                onClick={() => void createAgent()}
-              >
-                {minting ? "…" : "Create agent"}
-              </button>
-              <div className="ks-caption add-agent-note">
-                Mints a fresh <code>GRENZ_TOKEN</code>, adds the agent to <code>grenz.yaml</code>, and makes it live
-                now — no restart. The token is shown once.
+            {addingAgent && (
+              <div className="bg-card-inset flex flex-col gap-2 border-b px-[18px] py-3.5">
+                <div className="flex flex-wrap gap-2">
+                  <Input
+                    aria-label="New agent id"
+                    placeholder="agent id, e.g. ci-bot"
+                    value={newAgentId}
+                    autoFocus
+                    onChange={(e) => setNewAgentId(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && void createAgent()}
+                    className="h-[30px] max-w-[260px] flex-1 font-mono text-[12.5px]"
+                  />
+                  <Button
+                    size="sm"
+                    className="h-[30px]"
+                    disabled={minting || !newAgentId.trim()}
+                    onClick={() => void createAgent()}
+                  >
+                    {minting ? "…" : "Create agent"}
+                  </Button>
+                </div>
+                <p className="text-muted-foreground text-[12px]">
+                  Mints a fresh <code className="font-mono">GRENZ_TOKEN</code>, adds the agent to{" "}
+                  <code className="font-mono">grenz.yaml</code>, and makes it live now — no restart. The
+                  token is shown once.
+                </p>
               </div>
-            </div>
-          )}
+            )}
 
-          <div className="card">
-            {view.agents.length === 0 ? (
-              <div className="empty">No agents configured.</div>
-            ) : (
-              view.agents.map((a) => (
-                <div className="approval-row" key={a.id}>
-                  <div className="meta">
-                    <span className="ks-id">{a.id}</span>
+            <CardContent className="px-0">
+              {view.agents.length === 0 ? (
+                <div className="text-muted-foreground px-5 py-8 text-center text-[13px]">
+                  No agents configured.
+                </div>
+              ) : (
+                view.agents.map((a) => (
+                  <div
+                    key={a.id}
+                    className="border-border-soft flex items-center gap-3 border-b px-[18px] py-3 last:border-b-0"
+                  >
+                    <span className="shrink-0 font-mono text-[12.5px] font-medium">{a.id}</span>
                     <Pill a={a} />
                     {a.local && a.reason && (
-                      <span className="ks-reason">
-                        {a.origin === "auto" && <span className="badge deny">auto</span>} {a.reason}
+                      <span className="text-muted-foreground min-w-0 flex-1 truncate text-[12px]">
+                        {a.origin === "auto" && (
+                          <span className="border-deny/30 bg-deny/10 text-deny-foreground mr-1.5 rounded-full border px-1.5 py-0.5 text-[10.5px]">
+                            auto
+                          </span>
+                        )}
+                        {a.reason}
                         {a.ts ? ` · ${ago(a.ts)}` : ""}
                       </span>
                     )}
-                    {a.fleet && !a.local && <span className="ks-reason">held by the signed fleet set</span>}
-                  </div>
-                  <div className="btns">
-                    {!a.revoked && (
-                      <button className="deny" disabled={busy === a.id} onClick={() => void revoke(a.id)}>
-                        Revoke
-                      </button>
+                    {a.fleet && !a.local && (
+                      <span className="text-muted-foreground min-w-0 flex-1 truncate text-[12px]">
+                        held by the signed fleet set
+                      </span>
                     )}
-                    {a.local && (
-                      <button className="restore" disabled={busy === a.id} onClick={() => void restore(a.id, a.reason)}>
-                        Restore
-                      </button>
-                    )}
+                    <div className="ml-auto flex shrink-0 gap-2">
+                      {!a.revoked && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-deny/30 text-deny-foreground hover:bg-deny/10 hover:text-deny-foreground h-[28px]"
+                          disabled={busy === a.id}
+                          onClick={() => void revoke(a.id)}
+                        >
+                          Revoke
+                        </Button>
+                      )}
+                      {a.local && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-[28px]"
+                          disabled={busy === a.id}
+                          onClick={() => void restore(a.id, a.reason)}
+                        >
+                          Restore
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <h2>Temporary grants</h2>
-          <div className="card ks-card">
-            <div className="ks-form">
-              <Select
-                ariaLabel="agent"
-                className="ks-agent"
-                placeholder="Agent…"
-                value={gAgent}
-                onChange={setGAgent}
-                options={view.agents.map<SelectOption>((a) => ({
-                  value: a.id,
-                  label: a.id,
-                  hint: a.revoked ? "revoked" : undefined,
-                }))}
-              />
-              <input
-                aria-label="actions"
-                placeholder="actions, e.g. pr:merge, repo:delete"
-                value={gActions}
-                onChange={(e) => setGActions(e.target.value)}
-              />
-              <Select
-                ariaLabel="duration"
-                className="ks-ttl"
-                value={String(gTtl)}
-                onChange={(v) => setGTtl(Number(v))}
-                options={TTL_PRESETS.map<SelectOption>((p) => ({ value: String(p.secs), label: p.label }))}
-              />
-              <input
-                aria-label="reason"
-                placeholder="reason (required)"
-                value={gReason}
-                onChange={(e) => setGReason(e.target.value)}
-              />
-              <button
-                className="approve"
-                disabled={busy === MINT || !gAgent || !gActions.trim() || !gReason.trim()}
-                onClick={() => void grant()}
-              >
-                {busy === MINT ? "…" : "Grant"}
-              </button>
-            </div>
-            <div className="ks-caption">
-              Grants fill policy gaps and skip approval prompts for the window — they never override an explicit
-              deny.
-              {view.agents.length <= 1 && (
-                <>
-                  {" "}
-                  The agent list comes from your <code>grenz.yaml</code> — add more agents there to widen it.
-                </>
+                ))
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="card">
-            {grants.length === 0 ? (
-              <div className="empty">No temporary grants.</div>
-            ) : (
-              grants.map((g) => {
-                const remaining = Math.max(0, Math.round((g.expires_at - nowTick) / 1000));
-                return (
-                  <div className="approval-row" key={g.id}>
-                    <div className="meta">
-                      <span className="ks-id">{g.id}</span>
-                      <span className="ks-reason">
+          <Card className="min-w-0 gap-0 overflow-hidden py-0">
+            <CardHeader className="border-b px-[18px] py-3.5">
+              <CardTitle className="text-[14.5px]">Temporary grants</CardTitle>
+            </CardHeader>
+
+            <div className="bg-card-inset flex flex-col gap-2 border-b px-[18px] py-3.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={gAgent} onValueChange={setGAgent}>
+                  <SelectTrigger size="sm" className="h-[30px] w-[160px]" aria-label="Agent">
+                    <SelectValue placeholder="Agent…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {view.agents.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.id}
+                        {a.revoked ? " · revoked" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  aria-label="Actions"
+                  placeholder="actions, e.g. pr:merge, repo:delete"
+                  value={gActions}
+                  onChange={(e) => setGActions(e.target.value)}
+                  className="h-[30px] min-w-[220px] flex-1 font-mono text-[12.5px]"
+                />
+                <Select value={String(gTtl)} onValueChange={(v) => setGTtl(Number(v))}>
+                  <SelectTrigger size="sm" className="h-[30px] w-[130px]" aria-label="Duration">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TTL_PRESETS.map((p) => (
+                      <SelectItem key={p.secs} value={String(p.secs)}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  aria-label="Reason"
+                  placeholder="reason (required)"
+                  value={gReason}
+                  onChange={(e) => setGReason(e.target.value)}
+                  className="h-[30px] min-w-[180px] flex-1 text-[12.5px]"
+                />
+                <Button
+                  size="sm"
+                  className="h-[30px]"
+                  disabled={busy === MINT || !gAgent || !gActions.trim() || !gReason.trim()}
+                  onClick={() => void grant()}
+                >
+                  {busy === MINT ? "…" : "Grant"}
+                </Button>
+              </div>
+              <p className="text-muted-foreground text-[12px]">
+                Grants fill policy gaps and skip approval prompts for the window — they never override
+                an explicit deny.
+                {view.agents.length <= 1 && (
+                  <>
+                    {" "}
+                    The agent list comes from your <code className="font-mono">grenz.yaml</code> — add
+                    more agents there to widen it.
+                  </>
+                )}
+              </p>
+            </div>
+
+            <CardContent className="px-0">
+              {grants.length === 0 ? (
+                <div className="text-muted-foreground px-5 py-8 text-center text-[13px]">
+                  No temporary grants.
+                </div>
+              ) : (
+                grants.map((g) => {
+                  const remaining = Math.max(0, Math.round((g.expires_at - nowTick) / 1000));
+                  return (
+                    <div
+                      key={g.id}
+                      className="border-border-soft flex items-center gap-3 border-b px-[18px] py-3 last:border-b-0"
+                    >
+                      <span className="shrink-0 font-mono text-[12.5px] font-medium">{g.id}</span>
+                      <span className="text-muted-foreground min-w-0 flex-1 truncate text-[12px]">
                         {g.agent} · [{g.actions.join(", ")}]
                         {g.revoked ? (
-                          <> · <span className="badge revoked">revoked</span></>
+                          <>
+                            {" · "}
+                            <span className="border-deny/30 bg-deny/10 text-deny-foreground rounded-full border px-1.5 py-0.5 text-[10.5px]">
+                              revoked
+                            </span>
+                          </>
                         ) : (
                           ` · ${fmtDur(remaining)} left`
                         )}
                         {g.reason ? ` · ${g.reason}` : ""}
                       </span>
-                    </div>
-                    <div className="btns">
                       {!g.revoked && remaining > 0 && (
-                        <button className="deny" disabled={busy === g.id} onClick={() => void revokeGrant(g.id, g.agent, g.actions)}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-deny/30 text-deny-foreground hover:bg-deny/10 hover:text-deny-foreground ml-auto h-[28px] shrink-0"
+                          disabled={busy === g.id}
+                          onClick={() => void revokeGrant(g.id, g.agent, g.actions)}
+                        >
                           Revoke
-                        </button>
+                        </Button>
                       )}
                     </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
 
-          <h2>Session &amp; delegation revocations</h2>
-          <div className="card">
-            {otherRows.length === 0 ? (
-              <div className="empty">None.</div>
-            ) : (
-              otherRows.map((o) => (
-                <div className="approval-row" key={o.id}>
-                  <div className="meta">
-                    <span className="ks-id">{o.id}</span>
-                    {o.origin === "auto" ? (
-                      <span className="badge deny">auto</span>
-                    ) : (
-                      <span className="badge fleet" title="not a configured agent">
-                        stale id
-                      </span>
-                    )}
-                    <span className="ks-reason">
+          <Card className="min-w-0 gap-0 overflow-hidden py-0">
+            <CardHeader className="border-b px-[18px] py-3.5">
+              <CardTitle className="text-[14.5px]">Session &amp; delegation revocations</CardTitle>
+            </CardHeader>
+            <CardContent className="px-0">
+              {otherRows.length === 0 ? (
+                <div className="text-muted-foreground px-5 py-8 text-center text-[13px]">None.</div>
+              ) : (
+                otherRows.map((o) => (
+                  <div
+                    key={o.id}
+                    className="border-border-soft flex items-center gap-3 border-b px-[18px] py-3 last:border-b-0"
+                  >
+                    <span className="shrink-0 font-mono text-[12.5px] font-medium">{o.id}</span>
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                        o.origin === "auto"
+                          ? "border-deny/30 bg-deny/10 text-deny-foreground"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                      title={o.origin === "auto" ? undefined : "not a configured agent"}
+                    >
+                      {o.origin === "auto" ? "auto" : "stale id"}
+                    </span>
+                    <span className="text-muted-foreground min-w-0 flex-1 truncate text-[12px]">
                       {o.reason} · {ago(o.ts)}
                     </span>
-                  </div>
-                  <div className="btns">
-                    <button className="restore" disabled={busy === o.id} onClick={() => void restore(o.id, o.reason)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-auto h-[28px] shrink-0"
+                      disabled={busy === o.id}
+                      onClick={() => void restore(o.id, o.reason)}
+                    >
                       Restore
-                    </button>
+                    </Button>
                   </div>
-                </div>
-              ))
-            )}
-          </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
 
-          <div className="pol-note">
-            Revoking denies every request from an agent at the door — before any credential is touched — and
-            takes effect immediately, no restart. A temporary grant widens an agent past its policy for a bounded
-            window, then expires on its own.
-          </div>
+          <p className="text-muted-foreground text-[12.5px]">
+            Revoking denies every request from an agent at the door — before any credential is touched
+            — and takes effect immediately, no restart. A temporary grant widens an agent past its
+            policy for a bounded window, then expires on its own.
+          </p>
         </>
       )}
       {modalNode}
 
-      {minted && (
-        // Deliberately NOT dismissable by scrim click — the token is shown once,
-        // so closing is an explicit "Done" to avoid losing it before copying.
-        <div className="modal-scrim" role="presentation">
-          <div className="modal token-reveal" role="alertdialog" aria-modal="true" aria-label={`Agent ${minted.id} created`}>
-            <div className="modal-title">Agent “{minted.id}” created</div>
-            <div className="modal-body">
+      {/* Deliberately not dismissable by scrim or Esc — the token is shown once,
+          so closing is an explicit "Done" rather than something you can do by
+          accident before copying it. */}
+      <Dialog open={minted !== null}>
+        <DialogContent
+          showCloseButton={false}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          className="sm:max-w-[520px]"
+        >
+          <DialogHeader>
+            <DialogTitle>Agent &ldquo;{minted?.id}&rdquo; created</DialogTitle>
+            <DialogDescription>
               Copy its token now — it is <b>shown once</b> and cannot be retrieved again. Set it as{" "}
-              <code>GRENZ_TOKEN</code> in {minted.id}’s environment.
-            </div>
-            <div className="token-box">
-              <code className="token-val">{minted.token}</code>
-              <button className={`token-copy${copied ? " done" : ""}`} onClick={() => void copyToken()}>
-                {copied ? "Copied ✓" : "Copy"}
-              </button>
-            </div>
-            <div className="modal-actions">
-              <button className="modal-btn primary" onClick={() => setMinted(null)}>
-                Done
-              </button>
-            </div>
+              <code className="font-mono">GRENZ_TOKEN</code> in {minted?.id}&rsquo;s environment.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-card-inset flex items-center gap-2 rounded-lg border p-2">
+            <code className="min-w-0 flex-1 font-mono text-[12px] break-all">{minted?.token}</code>
+            <Button size="sm" variant="outline" className="shrink-0" onClick={() => void copyToken()}>
+              {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+              {copied ? "Copied" : "Copy"}
+            </Button>
           </div>
-        </div>
-      )}
-      </div>
-    </>
+          <DialogFooter>
+            <Button onClick={() => setMinted(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

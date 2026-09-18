@@ -1,8 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Nav, PageHead } from "../Nav";
-import { useModal } from "../Modal";
+import { AlertTriangle, Plus, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { PageHeader } from "@/components/page-header";
+import { useModal } from "@/components/use-modal";
+import { cn } from "@/lib/utils";
 
 type Entry = string | Record<string, unknown>;
 type ListKey = "allow" | "require_approval" | "deny";
@@ -21,10 +27,34 @@ interface PolicyDoc {
   digest: string;
 }
 
-const LISTS: Array<{ key: ListKey; label: string; cls: string; placeholder: string }> = [
-  { key: "allow", label: "Allow", cls: "allow", placeholder: "e.g. repo:read" },
-  { key: "require_approval", label: "Needs approval", cls: "approval", placeholder: "e.g. issue:update" },
-  { key: "deny", label: "Deny", cls: "deny", placeholder: "e.g. pr:merge" },
+const LISTS: Array<{
+  key: ListKey;
+  label: string;
+  placeholder: string;
+  labelClass: string;
+  chipClass: string;
+}> = [
+  {
+    key: "allow",
+    label: "Allow",
+    placeholder: "e.g. repo:read",
+    labelClass: "text-allow-foreground",
+    chipClass: "border-allow/30 bg-allow/10 text-allow-foreground",
+  },
+  {
+    key: "require_approval",
+    label: "Needs approval",
+    placeholder: "e.g. issue:update",
+    labelClass: "text-held-foreground",
+    chipClass: "border-held/30 bg-held/10 text-held-foreground",
+  },
+  {
+    key: "deny",
+    label: "Deny",
+    placeholder: "e.g. pr:merge",
+    labelClass: "text-deny-foreground",
+    chipClass: "border-deny/30 bg-deny/10 text-deny-foreground",
+  },
 ];
 
 /** Starter cards for the tools Grenz ships adapters for. Seeded with safe
@@ -226,176 +256,226 @@ export default function PolicyPage() {
   };
 
   return (
-    <>
-      <Nav />
-      <div className="wrap">
-        <PageHead title="Policy">
-        The rules every agent is held to. An agent may do what&#39;s in <span className="allow">Allow</span>, needs your
-        sign-off for anything in <span className="appr">Needs approval</span>, and is blocked by{" "}
-        <span className="deny">Deny</span> — everything else is denied by default. Edit below and{" "}
-        <b>Save to apply instantly</b>, no restart.
-      </PageHead>
+    <div className="flex min-w-0 flex-1 flex-col gap-4 p-6">
+      <PageHeader title="Policy">
+        The rules every agent is held to. An agent may do what&#39;s in{" "}
+        <span className="text-allow-foreground font-medium">Allow</span>, needs your sign-off for
+        anything in <span className="text-held-foreground font-medium">Needs approval</span>, and is
+        blocked by <span className="text-deny-foreground font-medium">Deny</span> — everything else
+        is denied by default. Saving applies instantly, no restart.
+      </PageHeader>
 
       {offline && (
-        <div className="offline">
-          Can’t reach the Grenz proxy. Start it with <code>grenz run</code>.
-        </div>
+        <Alert variant="destructive">
+          <AlertTriangle />
+          <AlertTitle>Can&rsquo;t reach the Grenz proxy.</AlertTitle>
+          <AlertDescription>
+            Start it with <code className="font-mono">grenz run</code>.
+          </AlertDescription>
+        </Alert>
       )}
 
       {doc && !doc.editable && (
-        <div className="offline info">
-          This policy is managed remotely (a signed <code>policy_source</code>) and is read-only here. Edit it at
-          the source and it will be redistributed.
-        </div>
+        <Alert>
+          <AlertTitle>This policy is managed remotely.</AlertTitle>
+          <AlertDescription>
+            It arrives as a signed <code className="font-mono">policy_source</code> and is read-only
+            here. Edit it at the source and it will be redistributed.
+          </AlertDescription>
+        </Alert>
       )}
 
       {doc?.editable && (
         <>
-          <div className="pol-toolbar">
-            <div className="pol-presets">
-              <span className="pol-presets-l">Add tool</span>
-              {PRESETS.map((p) => {
-                const exists = grants.some((g) => g.tool === p.tool);
-                return (
-                  <button
-                    key={p.tool}
-                    type="button"
-                    className="pol-preset"
-                    onClick={() => addPreset(p)}
-                    disabled={exists}
-                    title={exists ? "Already added" : `Add ${p.label} with safe defaults`}
-                  >
-                    + {p.label}
-                  </button>
-                );
-              })}
-              <span className="pol-add">
-                <input
-                  value={newTool}
-                  onChange={(e) => setNewTool(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addTool()}
-                  placeholder="custom…"
-                  aria-label="new tool name"
-                />
-                <button onClick={addTool} disabled={!newTool.trim()}>
-                  + Add
-                </button>
-              </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-muted-foreground mr-1 text-[12.5px]">Add tool</span>
+            {PRESETS.map((p) => {
+              const exists = grants.some((g) => g.tool === p.tool);
+              return (
+                <Button
+                  key={p.tool}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-[30px]"
+                  onClick={() => addPreset(p)}
+                  disabled={exists}
+                  title={exists ? "Already added" : `Add ${p.label} with safe defaults`}
+                >
+                  <Plus className="size-3.5" />
+                  {p.label}
+                </Button>
+              );
+            })}
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={newTool}
+                onChange={(e) => setNewTool(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addTool()}
+                placeholder="custom…"
+                aria-label="New tool name"
+                className="h-[30px] w-[130px] text-[12.5px]"
+              />
+              <Button size="sm" variant="outline" className="h-[30px]" onClick={addTool} disabled={!newTool.trim()}>
+                Add
+              </Button>
             </div>
-            <div className="pol-actions">
-              <button onClick={() => void send(true)} disabled={busy}>
+
+            <div className="ml-auto flex items-center gap-2">
+              <Button size="sm" variant="outline" className="h-[30px]" onClick={() => void send(true)} disabled={busy}>
                 Validate
-              </button>
-              <button className="save" onClick={() => void send(false)} disabled={busy || !dirty}>
+              </Button>
+              <Button size="sm" className="h-[30px]" onClick={() => void send(false)} disabled={busy || !dirty}>
                 {busy ? "…" : "Save"}
-              </button>
+              </Button>
             </div>
           </div>
 
-          {msg && <div className={`pol-msg ${msg.kind}`}>{msg.text}</div>}
+          {msg && (
+            <div
+              className={cn(
+                "rounded-lg border px-3.5 py-2.5 text-[12.5px]",
+                msg.kind === "ok" && "border-allow/30 bg-allow/10 text-allow-foreground",
+                msg.kind === "err" && "border-deny/30 bg-deny/10 text-deny-foreground",
+                msg.kind === "info" && "bg-muted text-muted-foreground",
+              )}
+            >
+              {msg.text}
+            </div>
+          )}
 
           {grants.length === 0 ? (
-            <div className="pol-empty">
-              <div className="pol-empty-t">No policy yet</div>
-              <div className="pol-empty-b">
-                Start from a tool Grenz knows — reads allowed, irreversible actions gated behind your approval.
-                Everything else is denied by default. Tune it, then Save.
-              </div>
-              <div className="pol-empty-row">
+            <Card className="items-center gap-2 py-10 text-center">
+              <div className="text-[14.5px] font-medium">No policy yet</div>
+              <p className="text-muted-foreground max-w-[56ch] text-[13px]">
+                Start from a tool Grenz knows — reads allowed, irreversible actions gated behind your
+                approval. Everything else is denied by default. Tune it, then Save.
+              </p>
+              <div className="mt-2 flex flex-wrap justify-center gap-2">
                 {PRESETS.map((p) => (
-                  <button key={p.tool} type="button" className="pol-preset lg" onClick={() => addPreset(p)}>
-                    + {p.label}
-                  </button>
+                  <Button key={p.tool} type="button" variant="outline" onClick={() => addPreset(p)}>
+                    <Plus className="size-4" />
+                    {p.label}
+                  </Button>
                 ))}
               </div>
-            </div>
+            </Card>
           ) : (
-            <div className="pol-grid">
+            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
               {grants.map((g) => (
-                <div className="pol-card" key={g.tool}>
-                  <div className="pol-card-head">
-                    <span className="pol-tool">{g.tool}</span>
-                    <button className="pol-x" onClick={() => void removeTool(g.tool)} aria-label={`remove ${g.tool}`}>
-                      ×
-                    </button>
-                  </div>
-                  {LISTS.map(({ key, label, cls, placeholder }) => (
-                    <div className="pol-list" key={key}>
-                      <div className={`pol-list-label ${cls}`}>{label}</div>
-                      <div className="pol-chips">
-                        {g[key].length === 0 && <span className="pol-none">—</span>}
-                        {g[key].map((e, i) =>
-                          isScoped(e) ? (
-                            <span className="pol-chip scoped" key={`s${i}`} title="target-scoped — edit in YAML">
-                              {scopedLabel(e)} <span className="pol-scoped-tag">scoped</span>
-                            </span>
-                          ) : (
-                            <span className={`pol-chip ${cls}`} key={`e${i}`}>
-                              {e}
-                              <button className="pol-chip-x" onClick={() => removeEntry(g.tool, key, i)} aria-label={`remove ${e}`}>
-                                ×
-                              </button>
-                            </span>
-                          ),
-                        )}
-                      </div>
-                      <input
-                        className="pol-input"
-                        placeholder={placeholder}
-                        onKeyDown={(ev) => {
-                          if (ev.key === "Enter") {
-                            addPattern(g.tool, key, (ev.target as HTMLInputElement).value);
-                            (ev.target as HTMLInputElement).value = "";
-                          }
-                        }}
-                        aria-label={`add ${label} pattern to ${g.tool}`}
-                      />
-                      {(() => {
-                        // Offer the adapter's real action names as click-to-add
-                        // chips — only the ones not already used in any list, so
-                        // the same action never lands in two buckets.
-                        const vocab = SUGGESTED[g.tool] ?? [];
-                        if (vocab.length === 0) return null;
-                        const used = new Set(
-                          [...g.allow, ...g.require_approval, ...g.deny].filter(
-                            (e): e is string => typeof e === "string",
-                          ),
-                        );
-                        const picks = vocab.filter((s) => !used.has(s)).slice(0, 5);
-                        if (picks.length === 0) return null;
-                        return (
-                          <div className="pol-sugg">
-                            {picks.map((s) => (
-                              <button
-                                key={s}
-                                type="button"
-                                className={`pol-sugg-chip ${cls}`}
-                                onClick={() => addPattern(g.tool, key, s)}
-                                title={`Add ${s} to ${label}`}
-                              >
-                                + {s}
-                              </button>
-                            ))}
+                <Card key={g.tool} className="min-w-0 gap-0 overflow-hidden py-0">
+                  <CardHeader className="items-center border-b px-[18px] py-3">
+                    <CardTitle className="truncate font-mono text-[13.5px]">{g.tool}</CardTitle>
+                    <CardAction>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-[26px]"
+                        onClick={() => void removeTool(g.tool)}
+                        aria-label={`Remove ${g.tool}`}
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </CardAction>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-4 px-[18px] py-4">
+                    {LISTS.map(({ key, label, placeholder, labelClass, chipClass }) => {
+                      // Offer the adapter's real action names as click-to-add
+                      // chips — only the ones not already used in any list, so
+                      // the same action never lands in two buckets.
+                      const vocab = SUGGESTED[g.tool] ?? [];
+                      const used = new Set(
+                        [...g.allow, ...g.require_approval, ...g.deny].filter(
+                          (e): e is string => typeof e === "string",
+                        ),
+                      );
+                      const picks = vocab.filter((s) => !used.has(s)).slice(0, 5);
+                      return (
+                        <div key={key} className="flex flex-col gap-2">
+                          <div className={cn("text-[11.5px] font-medium", labelClass)}>{label}</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {g[key].length === 0 && (
+                              <span className="text-muted-foreground text-[12px]">—</span>
+                            )}
+                            {g[key].map((e, i) =>
+                              isScoped(e) ? (
+                                <span
+                                  key={`s${i}`}
+                                  title="target-scoped — edit in YAML"
+                                  className="bg-muted text-muted-foreground inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono text-[11.5px]"
+                                >
+                                  {scopedLabel(e)}
+                                  <span className="text-[10px] tracking-wide uppercase opacity-70">
+                                    scoped
+                                  </span>
+                                </span>
+                              ) : (
+                                <span
+                                  key={`e${i}`}
+                                  className={cn(
+                                    "inline-flex items-center gap-1 rounded-md border py-0.5 pr-1 pl-2 font-mono text-[11.5px]",
+                                    chipClass,
+                                  )}
+                                >
+                                  {e}
+                                  <button
+                                    type="button"
+                                    onClick={() => removeEntry(g.tool, key, i)}
+                                    aria-label={`Remove ${e}`}
+                                    className="hover:bg-foreground/10 rounded-sm p-0.5"
+                                  >
+                                    <X className="size-3" />
+                                  </button>
+                                </span>
+                              ),
+                            )}
                           </div>
-                        );
-                      })()}
-                    </div>
-                  ))}
-                </div>
+                          <Input
+                            placeholder={placeholder}
+                            onKeyDown={(ev) => {
+                              if (ev.key === "Enter") {
+                                addPattern(g.tool, key, (ev.target as HTMLInputElement).value);
+                                (ev.target as HTMLInputElement).value = "";
+                              }
+                            }}
+                            aria-label={`Add ${label} pattern to ${g.tool}`}
+                            className="h-[30px] font-mono text-[12px]"
+                          />
+                          {picks.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {picks.map((s) => (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onClick={() => addPattern(g.tool, key, s)}
+                                  title={`Add ${s} to ${label}`}
+                                  className="border-border text-muted-foreground hover:bg-accent hover:text-foreground inline-flex items-center gap-1 rounded-md border border-dashed px-2 py-0.5 font-mono text-[11px]"
+                                >
+                                  <Plus className="size-2.5" />
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
 
           {(doc.advancedSections?.length ?? 0) > 0 && (
-            <div className="pol-note">
-              Preserved as-is (edit in <code>policy.yaml</code>): {doc.advancedSections.join(", ")}. Saving here
-              keeps these — and your comments — untouched.
-            </div>
+            <p className="text-muted-foreground text-[12.5px]">
+              Preserved as-is (edit in <code className="font-mono">policy.yaml</code>):{" "}
+              {doc.advancedSections.join(", ")}. Saving here keeps these — and your comments —
+              untouched.
+            </p>
           )}
         </>
       )}
       {modalNode}
-      </div>
-    </>
+    </div>
   );
 }

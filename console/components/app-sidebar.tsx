@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   CreditCard,
   FileText,
+  ShieldCheck,
   Inbox,
   KeyRound,
   LayoutGrid,
@@ -57,7 +58,8 @@ const GROUPS: Array<{ label: string; items: NavItem[] }> = [
   {
     label: "Configure",
     items: [
-      { title: "Policy", href: "/policy", icon: FileText },
+      { title: "Permissions", href: "/permissions", icon: ShieldCheck },
+      { title: "Rules", href: "/policy", icon: FileText },
       { title: "Access", href: "/access", icon: Lock },
       { title: "Budgets", href: "/budgets", icon: CreditCard },
     ],

@@ -14,7 +14,8 @@ const CRUMBS: Record<string, [string, string]> = {
   "/approvals": ["Control", "Approvals"],
   "/agents": ["Control", "Agents"],
   "/grants": ["Control", "Grants"],
-  "/policy": ["Configure", "Policy"],
+  "/permissions": ["Configure", "Permissions"],
+  "/policy": ["Configure", "Rules"],
   "/access": ["Configure", "Access"],
   "/budgets": ["Configure", "Budgets"],
 };
